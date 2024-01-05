@@ -103,6 +103,11 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.unfbx</groupId>-->
+<!--            <artifactId>chatgpt-java</artifactId>-->
+<!--            <version>1.0.15</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
