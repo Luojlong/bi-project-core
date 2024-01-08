@@ -4,39 +4,33 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.google.gson.Gson;
 import com.yupi.springbootinit.annotation.AuthCheck;
-import com.yupi.springbootinit.controller.OpenaiApi;
 import com.yupi.springbootinit.common.BaseResponse;
 import com.yupi.springbootinit.common.DeleteRequest;
 import com.yupi.springbootinit.common.ErrorCode;
 import com.yupi.springbootinit.common.ResultUtils;
 import com.yupi.springbootinit.constant.CommonConstant;
-import com.yupi.springbootinit.constant.FileConstant;
 import com.yupi.springbootinit.constant.UserConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
 import com.yupi.springbootinit.model.dto.chart.*;
-import com.yupi.springbootinit.model.dto.file.UploadFileRequest;
 import com.yupi.springbootinit.model.entity.Chart;
 import com.yupi.springbootinit.model.entity.User;
-import com.yupi.springbootinit.model.enums.FileUploadBizEnum;
 import com.yupi.springbootinit.model.vo.BiResponse;
 import com.yupi.springbootinit.service.ChartService;
+import com.yupi.springbootinit.service.OpenaiService;
+import com.yupi.springbootinit.service.impl.OpenaiServiceImpl;
 import com.yupi.springbootinit.service.UserService;
 import com.yupi.springbootinit.utils.ExcelUtils;
 import com.yupi.springbootinit.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.checkerframework.checker.units.qual.C;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.io.File;
-import java.util.List;
 
 /**
  * 图表接口
@@ -52,6 +46,9 @@ public class ChartController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private OpenaiService openaiService;
 
     private final static Gson GSON = new Gson();
 
@@ -73,14 +70,6 @@ public class ChartController {
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
         User loginUser = userService.getLoginUser(request);
-        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容: \n" +
-                "分析需求: \n" + "{数据分析的需求或目标}\n" +
-                "原始数据: \n" + "{csv格式的原始数据，用,作为分隔符}" +
-                "请根据这以上两部分内容，按照以下指定格式生成内容（此外不要输出任何多余的开头、结尾、注释，直接生成代码）" +
-                "【【【【【\n" +
-                "{前端Echarts V5的option配置对象json代码，合理地将数据进行可视化，不要生成任何多余的内容，比如注释}\n" +
-                "【【【【【\n" +
-                "{明确的数据分析结论，越详细越好，不要生成任何多余的内容}";
 
         // 构造用户输入
         StringBuilder userInput = new StringBuilder();
@@ -95,12 +84,11 @@ public class ChartController {
         userInput.append("原始数据：\n");
             // 压缩数据
         String userData = ExcelUtils.excel2Csv(multipartFile);
+        
         userInput.append(userData).append("\n");
-
-        // TODO:aiManange的chat方法
-        String result = OpenaiApi.doChat(userInput.toString());
-
+        String result = openaiService.doChat(userInput.toString());
         String[] splits = result.split("【【【【【");
+        System.out.println(result);
         if (splits.length < 3)
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成错误");
         String genChart = splits[1].trim();
