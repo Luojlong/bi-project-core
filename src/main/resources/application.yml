@@ -1,9 +1,10 @@
-# 公共配置文件
-# @author <a href="https://github.com/liyupi">程序员鱼皮</a>
-# @from <a href="https://yupi.icu">编程导航知识星球</a>
+# openai 配置项
 openai.model: gpt-3.5-turbo
-openai.api.key: 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
+openai.api.key: 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
 openai.api.url: https://api.openai.com/v1/chat/completions
+proxy.port: 7890
+proxy.host: 127.0.0.1
+
 spring:
   application:
     name: bi-project-core
