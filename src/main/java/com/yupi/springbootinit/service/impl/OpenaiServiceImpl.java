@@ -58,7 +58,7 @@ public class OpenaiServiceImpl implements OpenaiService {
                 "【【【【【\n" +
                 "{明确的数据分析结论，越详细越好，不要生成任何多余的内容}";
         ChatMessage systemMessage = new ChatMessage(ChatMessageRole.USER.value(), systemPrompt);
-        String systemRole = "你是一个数据分析师和前端开发专家";
+        String systemRole = "你是一个前端开发专家和数据分析师";
         ChatMessage systemRoleMessage = new ChatMessage(ChatMessageRole.SYSTEM.value(), systemRole);
         ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), userPrompt);
         messages.add(systemRoleMessage);
