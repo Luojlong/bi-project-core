@@ -49,19 +49,16 @@ public class OpenaiServiceImpl implements OpenaiService {
         OpenAiApi api = retrofit.create(OpenAiApi.class);
         OpenAiService service = new OpenAiService(api);
         List<ChatMessage> messages = new ArrayList<>();
-        String systemPrompt = "现在我会按照以下固定格式给你提供内容: \n" +
+        String systemPrompt = "你是一个前端开发专家和数据分析师，你需要生成json代码和分析结论，现在我会按照以下固定格式给你提供内容: \n" +
                 "分析需求: \n" + "{数据分析的需求或目标}\n" +
                 "原始数据: \n" + "{csv格式的原始数据，用,作为分隔符}" +
-                "请根据这以上两部分内容，按照以下指定格式生成内容（此外不要输出任何多余的开头、结尾、注释，直接生成代码）" +
+                "请根据这以上两部分内容，按照以下指定格式生成内容，其中包括生成分隔符\"【【【【【\"，同时分析结论请直接给出（此外不要输出任何多余的开头、结尾、注释）" +
                 "【【【【【\n" +
                 "{前端Echarts V5的option配置对象json代码，合理地将数据进行可视化，不要生成任何多余的内容，比如注释}\n" +
                 "【【【【【\n" +
                 "{明确的数据分析结论，越详细越好，不要生成任何多余的内容}";
         ChatMessage systemMessage = new ChatMessage(ChatMessageRole.USER.value(), systemPrompt);
-        String systemRole = "你是一个前端开发专家和数据分析师";
-        ChatMessage systemRoleMessage = new ChatMessage(ChatMessageRole.SYSTEM.value(), systemRole);
         ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), userPrompt);
-        messages.add(systemRoleMessage);
         messages.add(systemMessage);
         messages.add(userMessage);
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest

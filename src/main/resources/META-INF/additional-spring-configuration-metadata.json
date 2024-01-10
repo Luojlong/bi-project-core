@@ -29,6 +29,26 @@
       "name": "wx.open.appSecret",
       "type": "java.lang.String",
       "description": "Description for wx.open.appSecret."
+    },
+    {
+      "name": "openai.model",
+      "type": "java.lang.String",
+      "description": "需选用的openai模型"
+    },
+    {
+      "name": "openai.api.key",
+      "type": "java.lang.String",
+      "description": "openai的api Key"
+    },
+    {
+      "name": "proxy.port",
+      "type": "java.lang.String",
+      "description": "代理的端口号，一般为7890"
+    },
+    {
+      "name": "proxy.host",
+      "type": "java.lang.String",
+      "description": "代理的ip地址"
     }
   ]
 }

@@ -1,7 +1,6 @@
 # openai 配置项
 openai.model: gpt-3.5-turbo
 openai.api.key: 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
-openai.api.url: https://api.openai.com/v1/chat/completions
 proxy.port: 7890
 proxy.host: 127.0.0.1
 
