@@ -21,4 +21,5 @@ public class BiResponse {
      * 图标id
      */
     private Long chartId;
+
 }

@@ -1,8 +1,9 @@
 package com.yupi.springbootinit.controller;
 
+import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.google.gson.Gson;
+import com.google.gson.*;
 import com.yupi.springbootinit.annotation.AuthCheck;
 import com.yupi.springbootinit.common.BaseResponse;
 import com.yupi.springbootinit.common.DeleteRequest;
@@ -18,7 +19,6 @@ import com.yupi.springbootinit.model.entity.User;
 import com.yupi.springbootinit.model.vo.BiResponse;
 import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.service.OpenaiService;
-import com.yupi.springbootinit.service.impl.OpenaiServiceImpl;
 import com.yupi.springbootinit.service.UserService;
 import com.yupi.springbootinit.utils.ExcelUtils;
 import com.yupi.springbootinit.utils.SqlUtils;
@@ -31,6 +31,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 图表接口
@@ -50,8 +52,41 @@ public class ChartController {
     @Resource
     private OpenaiService openaiService;
 
-    private final static Gson GSON = new Gson();
-
+    /**
+     * 常见图表英文转中文
+     * @param type
+     * @return
+     */
+    private static String getChartTypeToCN(String type){
+        switch (type){
+            case "line":
+                return "折线图";
+            case "bar":
+                return "柱状图";
+            case "pie":
+                return "饼图";
+            case "scatter":
+                return "散点图";
+            case "radar":
+                return "雷达图";
+            case "map":
+                return "地图";
+            case "candlestick":
+                return "K线图";
+            case "heatmap":
+                return "热力图";
+            case "tree":
+                return "树图";
+            case "lines":
+                return "路线图";
+            case "graph":
+                return "关系图";
+            case "sunburst":
+                return "旭日图";
+            default:
+                return "特殊图表";
+        }
+    }
     /**
      * 文件AI分析
      *
@@ -70,7 +105,14 @@ public class ChartController {
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
         User loginUser = userService.getLoginUser(request);
-
+        // 校验文件大小及后缀
+        long size = multipartFile.getSize();
+        final long TEN_MB = 10 * 1024 * 1024L;
+        ThrowUtils.throwIf(size > TEN_MB, ErrorCode.PARAMS_ERROR, "文件大小大于10M");
+        String fileName = multipartFile.getOriginalFilename();
+        String suffix = FileUtil.getSuffix(fileName);
+        final List<String> validFileSuffix = Arrays.asList("xlsx", "csv", "xls");
+        ThrowUtils.throwIf(!validFileSuffix.contains(suffix), ErrorCode.PARAMS_ERROR, "文件后缀非法");
         // 构造用户输入
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：\n");
@@ -84,23 +126,63 @@ public class ChartController {
         userInput.append("原始数据：\n");
             // 压缩数据
         String userData = ExcelUtils.excel2Csv(multipartFile);
-        
         userInput.append(userData).append("\n");
         String result = openaiService.doChat(userInput.toString());
         String[] splits = result.split("【【【【【");
-        System.out.println(result);
         if (splits.length < 3)
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成错误");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
         String genChart = splits[1].trim();
         String genResult = splits[2].trim();
+        // 解析 genChart 为 JSON 对象
+        JsonObject chartJson = null;
+        String genChartName = "";
+
+        try {
+            chartJson = JsonParser.parseString(genChart).getAsJsonObject();
+            genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
+        } catch (JsonSyntaxException e) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常");
+        }
+
+        chartJson.remove("title");
+        // 加入加载按钮
+        JsonObject toolbox = new JsonObject();
+        toolbox.addProperty("show", true);
+        JsonObject saveAsImage = new JsonObject();
+        saveAsImage.addProperty("show", true);
+        saveAsImage.addProperty("excludeComponents", "['toolbox']");
+        saveAsImage.addProperty("pixelRatio", 2);
+        JsonObject feature = new JsonObject();
+        feature.add("saveAsImage", saveAsImage);
+        toolbox.add("feature", feature);
+        chartJson.add("toolbox", toolbox);
+        String updatedGenChart = chartJson.toString();
 
         // 插入数据库
         Chart chart = new Chart();
-        chart.setName(name);
+        JsonArray seriesArray = chartJson.getAsJsonArray("series");
+        for (JsonElement i : seriesArray){
+            String typeChart = i.getAsJsonObject().get("type").getAsString();
+            if (StringUtils.isEmpty(chartType)){
+                String CnChartType = getChartTypeToCN(typeChart);
+                chart.setChartType(CnChartType);
+                System.out.println(CnChartType);
+            } else
+                chart.setChartType(chartType);
+        }
+        // 加入图表名称结尾
+        if (StringUtils.isEmpty(name)){
+            genChartName = genChartName.replace("\"","");
+            if (! genChartName.endsWith("图") || ! genChartName.endsWith("表"))
+                genChartName = genChartName + "图";
+            System.out.println(genChartName);
+            chart.setName(genChartName);
+        } else
+            chart.setName(name);
+
         chart.setGoal(goal);
         chart.setChartData(userData);
-        chart.setChartType(chartType);
-        chart.setGenChart(genChart);
+        chart.setGenChart(updatedGenChart);
         chart.setGenResult(genResult);
         chart.setUserId(loginUser.getId());
         boolean saveResult = chartService.save(chart);
@@ -112,7 +194,6 @@ public class ChartController {
         return ResultUtils.success(biResponse);
 
     }
-    // region 增删改查
 
     /**
      * 创建
