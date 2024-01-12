@@ -49,14 +49,15 @@ public class OpenaiServiceImpl implements OpenaiService {
         OpenAiApi api = retrofit.create(OpenAiApi.class);
         OpenAiService service = new OpenAiService(api);
         List<ChatMessage> messages = new ArrayList<>();
-        String systemPrompt = "你是一个前端开发专家和数据分析师，你需要生成json代码和分析结论，现在我会按照以下固定格式给你提供内容: \n" +
-                "分析需求: \n" + "{数据分析的需求或目标}\n" +
-                "原始数据: \n" + "{csv格式的原始数据，用,作为分隔符}" +
-                "请根据这以上两部分内容，按照以下指定格式生成内容，其中包括生成分隔符\"【【【【【\"，同时分析结论请直接给出（此外不要输出任何多余的开头、结尾、注释）" +
+        final String systemPrompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
+                "分析需求：\n" + "{数据分析的需求或者目标}\n" +
+                "原始数据：\n" + "{csv格式的原始数据，用,作为分隔符}\n" +
+                "请根据这两部分内容，按照以下指定格式生成内容,其中包括生成分隔符\"【【【【【\"，同时分析结论请直接给出（此外不要输出任何多余的开头、结尾、注释）\n" +
                 "【【【【【\n" +
-                "{前端Echarts V5的option配置对象json代码，合理地将数据进行可视化，不要生成任何多余的内容，比如注释}\n" +
+                "{前端 Echarts V5 的 option 配置对象js代码(json格式)，代码需要包括title.text（需要该图的名称）部分，合理地将数据进行可视化，不要生成任何多余的内容，比如注释}\n" +
                 "【【【【【\n" +
-                "{明确的数据分析结论，越详细越好，不要生成任何多余的内容}";
+                "{请直接明确的数据分析结论、越详细越好（字数越多越好），不要生成多余的注释}";
+
         ChatMessage systemMessage = new ChatMessage(ChatMessageRole.USER.value(), systemPrompt);
         ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), userPrompt);
         messages.add(systemMessage);
