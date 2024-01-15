@@ -31,6 +31,7 @@ public class RedisLimiterManager {
         rateLimiter.trySetRate(RateType.OVERALL, 2, 1, RateIntervalUnit.SECONDS);
         // 来了一个操作后请求一个令牌
         boolean canOperate = rateLimiter.tryAcquire(1);
+        // TODO:服务降级
         if(!canOperate){
             throw new BusinessException(ErrorCode.TO_MANY_REQUEST, "该服务被调用次数过多");
         }

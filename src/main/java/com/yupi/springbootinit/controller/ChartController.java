@@ -34,6 +34,8 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * 图表接口
@@ -55,6 +57,9 @@ public class ChartController {
 
     @Resource
     private RedisLimiterManager redisLimiterManager;
+
+    @Resource
+    private ThreadPoolExecutor threadPoolExecutor;
 
     /**
      * 常见图表英文转中文
@@ -122,7 +127,6 @@ public class ChartController {
         // 构造用户输入
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：\n");
-
         // 拼接分析目标
         String userGoal = goal;
             // 分析输入加入图表类型
@@ -139,6 +143,11 @@ public class ChartController {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
         String genChart = splits[1].trim();
         String genResult = splits[2].trim();
+        // Echarts代码过滤 "var option ="
+        if (genChart.startsWith("var option =")) {
+            // 去除 "var option ="
+            genChart = genChart.replaceFirst("var\\s+option\\s*=\\s*", "");
+        }
 
         // 插入数据库
         Chart chart = new Chart();
@@ -147,23 +156,28 @@ public class ChartController {
 
         try {
             chartJson = JsonParser.parseString(genChart).getAsJsonObject();
-            genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
         } catch (JsonSyntaxException e) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常");
         }
         // 自动添加图表类型
-        JsonArray seriesArray = chartJson.getAsJsonArray("series");
-        for (JsonElement i : seriesArray){
-            String typeChart = i.getAsJsonObject().get("type").getAsString();
-            if (StringUtils.isEmpty(chartType)){
-                String CnChartType = getChartTypeToCN(typeChart);
-                chart.setChartType(CnChartType);
-                System.out.println(CnChartType);
-            } else
-                chart.setChartType(chartType);
-        }
+        if (StringUtils.isEmpty(chartType)){
+            JsonArray seriesArray = chartJson.getAsJsonArray("series");
+            for (JsonElement i : seriesArray){
+                String typeChart = i.getAsJsonObject().get("type").getAsString();
+                    String CnChartType = getChartTypeToCN(typeChart);
+                    chart.setChartType(CnChartType);
+                    System.out.println(CnChartType);
+            }
+        }else
+            chart.setChartType(chartType);
+
         // 自动加入图表名称结尾并设置图表名称
         if (StringUtils.isEmpty(name)){
+            try {
+                genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
+            } catch (JsonSyntaxException e) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
+            }
             genChartName = genChartName.replace("\"","");
             if (! genChartName.endsWith("图") || ! genChartName.endsWith("表"))
                 genChartName = genChartName + "图";
@@ -190,13 +204,169 @@ public class ChartController {
         chart.setGenChart(updatedGenChart);
         chart.setGenResult(genResult);
         chart.setUserId(loginUser.getId());
+        chart.setStatus("succeed");
         boolean saveResult = chartService.save(chart);
-        ThrowUtils.throwIf(!saveResult, ErrorCode.SYSTEM_ERROR, "图表保存失败");
+        if (!saveResult)
+            handleChartUpdateError(chart.getId(),"图表信息保存失败");
         BiResponse biResponse = new BiResponse();
         biResponse.setGenChart(updatedGenChart);
         biResponse.setGenResult(genResult);
         biResponse.setChartId(chart.getId());
         return ResultUtils.success(biResponse);
+    }
+
+    /**
+     * 图表错误状态处理
+     * @param chartId
+     * @param execMessage
+     */
+    private void handleChartUpdateError(long chartId, String execMessage){
+        Chart updateChart = new Chart();
+        updateChart.setId(chartId);
+        updateChart.setStatus("failed");
+        updateChart.setExecMessage(execMessage);
+        boolean b = chartService.updateById(updateChart);
+        if (!b)
+            log.error("更新图表失败状态错误" + chartId + ":" + execMessage);
+    }
+
+    /**
+     * 文件AI分析
+     *
+     * @param multipartFile
+     * @param genChartByAiRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/gen/async")
+    public BaseResponse<BiResponse> genChartByAiAsync(@RequestPart("file") MultipartFile multipartFile,
+                                                 GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
+        String name = genChartByAiRequest.getName();
+        String goal = genChartByAiRequest.getGoal();
+        String chartType = genChartByAiRequest.getChartType();
+        // 校验
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
+        User loginUser = userService.getLoginUser(request);
+        // 校验文件大小及后缀
+        long size = multipartFile.getSize();
+        final long TEN_MB = 10 * 1024 * 1024L;
+        ThrowUtils.throwIf(size > TEN_MB, ErrorCode.PARAMS_ERROR, "文件大小大于10M");
+        String fileName = multipartFile.getOriginalFilename();
+        String suffix = FileUtil.getSuffix(fileName);
+        final List<String> validFileSuffix = Arrays.asList("xlsx", "csv", "xls");
+        ThrowUtils.throwIf(!validFileSuffix.contains(suffix), ErrorCode.PARAMS_ERROR, "文件后缀非法");
+        // 每个用户限流
+        redisLimiterManager.doRateLimit("genChartByAi" + loginUser.getId());
+        // 构造用户输入
+        StringBuilder userInput = new StringBuilder();
+        userInput.append("分析需求：\n");
+        // 拼接分析目标
+        String userGoal = goal;
+        // 分析输入加入图表类型
+        if (StringUtils.isNotBlank(chartType))
+            userGoal += ",请使用" + chartType;
+        userInput.append(userGoal).append("\n");
+        userInput.append("原始数据：\n");
+        // 压缩数据
+        String userData = ExcelUtils.excel2Csv(multipartFile);
+        userInput.append(userData).append("\n");
+
+        // 插入数据库
+        Chart chart = new Chart();
+        chart.setStatus("wait");
+        chart.setGoal(goal);
+        chart.setChartData(userData);
+        if (!StringUtils.isEmpty(name))
+            chart.setName(name);
+        if (!StringUtils.isEmpty(chartType))
+            chart.setChartType(chartType);
+        chart.setUserId(loginUser.getId());
+        boolean saveResult = chartService.save(chart);
+        if (!saveResult)
+            handleChartUpdateError(chart.getId(), "图表初始数据保存失败");
+        BiResponse biResponse = new BiResponse();
+        biResponse.setChartId(chart.getId());
+        log.info("还没异步操作");
+        // TODO:   用try catch解决任务队列满了抛异常
+        CompletableFuture.runAsync(()->{
+            log.info("进入异步操作");
+            Chart updateChart = new Chart();
+            updateChart.setId(chart.getId());
+            updateChart.setStatus("running");
+            boolean bool = chartService.updateById(updateChart);
+            if (!bool) {
+                handleChartUpdateError(updateChart.getId(), "图表执行状态保存失败");
+                return;
+            }
+            String result = openaiService.doChat(userInput.toString());
+            String[] splits = result.split("【【【【【");
+            if (splits.length < 3)
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
+            String genChart = splits[1].trim();
+            String genResult = splits[2].trim();
+            // Echarts代码过滤 "var option ="
+            if (genChart.startsWith("var option =")) {
+                // 去除 "var option ="
+                genChart = genChart.replaceFirst("var\\s+option\\s*=\\s*", "");
+            }
+            Chart updateResult = new Chart();
+            updateResult.setId(chart.getId());
+            JsonObject chartJson;
+            String genChartName;
+            String updatedGenChart = "";
+            try {
+                chartJson = JsonParser.parseString(genChart).getAsJsonObject();
+            } catch (JsonSyntaxException e) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常");
+            }
+            // 自动添加图表类型
+            if (StringUtils.isEmpty(chart.getName())) {
+                JsonArray seriesArray = chartJson.getAsJsonArray("series");
+                for (JsonElement i : seriesArray) {
+                    String typeChart = i.getAsJsonObject().get("type").getAsString();
+                    String CnChartType = getChartTypeToCN(typeChart);
+                    updateResult.setChartType(CnChartType);
+                    System.out.println(CnChartType);
+                }
+            }
+            // 自动加入图表名称结尾并设置图表名称
+            if (StringUtils.isEmpty(chart.getName())) {
+                try {
+                    genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
+                } catch (JsonSyntaxException e) {
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
+                }
+                genChartName = genChartName.replace("\"", "");
+                if (!genChartName.endsWith("图") || !genChartName.endsWith("表"))
+                    genChartName = genChartName + "图";
+                System.out.println(genChartName);
+                updateResult.setName(genChartName);
+                // 加入下载按钮
+                JsonObject toolbox = new JsonObject();
+                toolbox.addProperty("show", true);
+                JsonObject saveAsImage = new JsonObject();
+                saveAsImage.addProperty("show", true);
+                saveAsImage.addProperty("excludeComponents", "['toolbox']");
+                saveAsImage.addProperty("pixelRatio", 2);
+                JsonObject feature = new JsonObject();
+                feature.add("saveAsImage", saveAsImage);
+                toolbox.add("feature", feature);
+                chartJson.add("toolbox", toolbox);
+                chartJson.remove("title");
+                updatedGenChart = chartJson.toString();
+            }
+            updateResult.setGenChart(updatedGenChart);
+            // TODO:枚举值实现
+            updateResult.setStatus("succeed");
+            boolean code = chartService.updateById(updateResult);
+            if (!code)
+                handleChartUpdateError(updateResult.getId(), "图表代码保存失败");
+            biResponse.setGenChart(updatedGenChart);
+            biResponse.setGenResult(genResult);
+        }, threadPoolExecutor);
+        return ResultUtils.success(biResponse);
+
     }
 
     /**
