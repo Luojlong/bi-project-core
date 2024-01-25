@@ -27,7 +27,11 @@ spring:
     url: jdbc:mysql://localhost:3307/my_db
     username: root
     password: 123456
-
+  rabbitmq:
+    host: localhost
+    password: guest
+    username: guest
+    port: 5672
   # Redis 配置
   redis:
     database: 1

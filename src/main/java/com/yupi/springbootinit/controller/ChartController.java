@@ -18,6 +18,7 @@ import com.yupi.springbootinit.model.dto.chart.*;
 import com.yupi.springbootinit.model.entity.Chart;
 import com.yupi.springbootinit.model.entity.User;
 import com.yupi.springbootinit.model.vo.BiResponse;
+import com.yupi.springbootinit.mq.MessageProducer;
 import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.service.OpenaiService;
 import com.yupi.springbootinit.service.UserService;
@@ -61,41 +62,44 @@ public class ChartController {
     @Resource
     private ThreadPoolExecutor threadPoolExecutor;
 
-    /**
-     * 常见图表英文转中文
-     * @param type
-     * @return
-     */
-    private static String getChartTypeToCN(String type){
-        switch (type){
-            case "line":
-                return "折线图";
-            case "bar":
-                return "柱状图";
-            case "pie":
-                return "饼图";
-            case "scatter":
-                return "散点图";
-            case "radar":
-                return "雷达图";
-            case "map":
-                return "地图";
-            case "candlestick":
-                return "K线图";
-            case "heatmap":
-                return "热力图";
-            case "tree":
-                return "树图";
-            case "lines":
-                return "路线图";
-            case "graph":
-                return "关系图";
-            case "sunburst":
-                return "旭日图";
-            default:
-                return "特殊图表";
-        }
-    }
+    @Resource
+    private MessageProducer messageProducer;
+
+//    /**
+//     * 常见图表英文转中文
+//     * @param type
+//     * @return
+//     */
+//    private static String getChartTypeToCN(String type){
+//        switch (type){
+//            case "line":
+//                return "折线图";
+//            case "bar":
+//                return "柱状图";
+//            case "pie":
+//                return "饼图";
+//            case "scatter":
+//                return "散点图";
+//            case "radar":
+//                return "雷达图";
+//            case "map":
+//                return "地图";
+//            case "candlestick":
+//                return "K线图";
+//            case "heatmap":
+//                return "热力图";
+//            case "tree":
+//                return "树图";
+//            case "lines":
+//                return "路线图";
+//            case "graph":
+//                return "关系图";
+//            case "sunburst":
+//                return "旭日图";
+//            default:
+//                return "特殊图表";
+//        }
+//    }
     /**
      * 文件AI分析
      *
@@ -164,7 +168,7 @@ public class ChartController {
             JsonArray seriesArray = chartJson.getAsJsonArray("series");
             for (JsonElement i : seriesArray){
                 String typeChart = i.getAsJsonObject().get("type").getAsString();
-                    String CnChartType = getChartTypeToCN(typeChart);
+                    String CnChartType = chartService.getChartTypeToCN(typeChart);
                     chart.setChartType(CnChartType);
                     System.out.println(CnChartType);
             }
@@ -325,7 +329,7 @@ public class ChartController {
                 JsonArray seriesArray = chartJson.getAsJsonArray("series");
                 for (JsonElement i : seriesArray) {
                     String typeChart = i.getAsJsonObject().get("type").getAsString();
-                    String CnChartType = getChartTypeToCN(typeChart);
+                    String CnChartType = chartService.getChartTypeToCN(typeChart);
                     updateResult.setChartType(CnChartType);
                     System.out.println(CnChartType);
                 }
@@ -366,8 +370,71 @@ public class ChartController {
             biResponse.setGenResult(genResult);
         }, threadPoolExecutor);
         return ResultUtils.success(biResponse);
-
     }
+
+    /**
+     * 文件AI分析
+     *
+     * @param multipartFile
+     * @param genChartByAiRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/gen/async/mq")
+    public BaseResponse<BiResponse> genChartByAiAsyncMq(@RequestPart("file") MultipartFile multipartFile,
+                                                      GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
+        String name = genChartByAiRequest.getName();
+        String goal = genChartByAiRequest.getGoal();
+        String chartType = genChartByAiRequest.getChartType();
+        // 校验
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
+        User loginUser = userService.getLoginUser(request);
+        // 校验文件大小及后缀
+        long size = multipartFile.getSize();
+        final long TEN_MB = 10 * 1024 * 1024L;
+        ThrowUtils.throwIf(size > TEN_MB, ErrorCode.PARAMS_ERROR, "文件大小大于10M");
+        String fileName = multipartFile.getOriginalFilename();
+        String suffix = FileUtil.getSuffix(fileName);
+        final List<String> validFileSuffix = Arrays.asList("xlsx", "csv", "xls");
+        ThrowUtils.throwIf(!validFileSuffix.contains(suffix), ErrorCode.PARAMS_ERROR, "文件后缀非法");
+        // 每个用户限流
+        redisLimiterManager.doRateLimit("genChartByAi" + loginUser.getId());
+        // 构造用户输入
+        StringBuilder userInput = new StringBuilder();
+        userInput.append("分析需求：\n");
+        // 拼接分析目标
+        String userGoal = goal;
+        // 分析输入加入图表类型
+        if (StringUtils.isNotBlank(chartType))
+            userGoal += ",请使用" + chartType;
+        userInput.append(userGoal).append("\n");
+        userInput.append("原始数据：\n");
+        // 压缩数据
+        String userData = ExcelUtils.excel2Csv(multipartFile);
+        userInput.append(userData).append("\n");
+
+        // 插入数据库
+        Chart chart = new Chart();
+        chart.setStatus("wait");
+        chart.setGoal(goal);
+        chart.setChartData(userData);
+        if (!StringUtils.isEmpty(name))
+            chart.setName(name);
+        if (!StringUtils.isEmpty(chartType))
+            chart.setChartType(chartType);
+        chart.setUserId(loginUser.getId());
+        boolean saveResult = chartService.save(chart);
+        if (!saveResult)
+            handleChartUpdateError(chart.getId(), "图表初始数据保存失败");
+        long newChartId = chart.getId();
+        messageProducer.sendMessage(String.valueOf(newChartId));
+        BiResponse biResponse = new BiResponse();
+        biResponse.setChartId(newChartId);
+        return ResultUtils.success(biResponse);
+    }
+
+
 
     /**
      * 创建
