@@ -15,7 +15,6 @@ public class MessageProducer {
 
     public void sendMessage(String message){
         rabbitTemplate.convertAndSend(EXCHANGE_NAME, ROUTING_KEY, message);
-
     }
 
 }

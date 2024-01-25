@@ -52,8 +52,15 @@ public class MessageConsumer {
         }
         String result = openaiService.doChat(handleUserInput(chart));
         String[] splits = result.split("【【【【【");
-        if (splits.length < 3)
+        if (splits.length < 3){
+            // 重新再次生成一次
+            if (deliveryTag > 1) {
+                channel.basicNack(deliveryTag, false, false);
+            }
+            channel.basicNack(deliveryTag, false, true);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
+        }
+
         String genChart = splits[1].trim();
         String genResult = splits[2].trim();
         // Echarts代码过滤 "var option ="
@@ -63,12 +70,18 @@ public class MessageConsumer {
         }
         Chart updateResult = new Chart();
         updateResult.setId(chart.getId());
+        updateResult.setGenResult(genResult);
         JsonObject chartJson;
         String genChartName;
         String updatedGenChart = "";
         try {
             chartJson = JsonParser.parseString(genChart).getAsJsonObject();
         } catch (JsonSyntaxException e) {
+            // 重新再次生成一次
+            if (deliveryTag > 1) {
+                channel.basicNack(deliveryTag, false, false);
+            }
+            channel.basicNack(deliveryTag, false, true);
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常");
         }
         // 自动添加图表类型
@@ -114,7 +127,6 @@ public class MessageConsumer {
         if (!code){
             channel.basicNack(deliveryTag, false, false);
             handleChartUpdateError(updateResult.getId(), "图表代码保存失败");
-
         }
         channel.basicAck(deliveryTag, false);
     }
