@@ -36,7 +36,7 @@ public class OpenaiServiceImpl implements OpenaiService {
     private int proxyPort;
 
     // 根据需要配置超时时间
-    private static final Duration TIMEOUT = Duration.ofSeconds(30L);
+    private static final Duration TIMEOUT = Duration.ofSeconds(120L);
 
     public String doChat(String userPrompt) {
         ObjectMapper mapper = defaultObjectMapper();

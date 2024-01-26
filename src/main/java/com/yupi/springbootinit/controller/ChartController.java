@@ -13,6 +13,7 @@ import com.yupi.springbootinit.constant.CommonConstant;
 import com.yupi.springbootinit.constant.UserConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
+import com.yupi.springbootinit.manager.RedisCacheManager;
 import com.yupi.springbootinit.manager.RedisLimiterManager;
 import com.yupi.springbootinit.model.dto.chart.*;
 import com.yupi.springbootinit.model.entity.Chart;
@@ -27,6 +28,8 @@ import com.yupi.springbootinit.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -55,6 +58,9 @@ public class ChartController {
 
     @Resource
     private OpenaiService openaiService;
+
+    @Resource
+    private RedisCacheManager redisCacheManager;
 
     @Resource
     private RedisLimiterManager redisLimiterManager;
@@ -400,7 +406,6 @@ public class ChartController {
     }
 
 
-
     /**
      * 创建
      *
@@ -526,12 +531,27 @@ public class ChartController {
         long size = chartQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+//        Page<Chart> chartPage = chartService.page(new Page<>(current, size),
+//                getQueryWrapper(chartQueryRequest));
+        String cacheKey = "ChartController_listMyChartVOByPage_" + chartQueryRequest.getId();
+        RMap<String, Object> cachedResult = redisCacheManager.getCachedResult(cacheKey);
+
+        if (cachedResult.size() > 0) {
+            // 如果缓存中有结果，则直接返回缓存的结果
+            Page<Chart> chartPage = (Page<Chart>) cachedResult.get(cacheKey);
+            return ResultUtils.success(chartPage);
+        }
+
+        // 如果缓存中没有结果，则查询数据库
         Page<Chart> chartPage = chartService.page(new Page<>(current, size),
                 getQueryWrapper(chartQueryRequest));
+
+        // 将查询结果放入缓存
+        redisCacheManager.asyncPutCachedResult(cacheKey, chartPage);
+
         return ResultUtils.success(chartPage);
     }
 
-    // endregion
 
     /**
      * 编辑（用户）
