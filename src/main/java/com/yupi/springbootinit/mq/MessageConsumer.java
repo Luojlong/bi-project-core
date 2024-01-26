@@ -7,12 +7,11 @@ import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.model.entity.Chart;
 import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.service.OpenaiService;
-import com.yupi.springbootinit.utils.ExcelUtils;
+import com.yupi.springbootinit.ws.WebSocketServer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
@@ -30,6 +29,8 @@ public class MessageConsumer {
     @Resource
     private OpenaiService openaiService;
 
+    @Resource
+    private WebSocketServer webSocketService;
     // 指定程序监听的消息队列和确认机制
     @SneakyThrows
     @RabbitListener(queues = {QUEUE_NAME}, ackMode = "MANUAL")
@@ -128,6 +129,7 @@ public class MessageConsumer {
             channel.basicNack(deliveryTag, false, false);
             handleChartUpdateError(updateResult.getId(), "图表代码保存失败");
         }
+        webSocketService.sendToAllClient("图表生成好啦，快去看看吧！");
         channel.basicAck(deliveryTag, false);
     }
 
@@ -159,6 +161,7 @@ public class MessageConsumer {
         updateChart.setId(chartId);
         updateChart.setStatus("failed");
         updateChart.setExecMessage(execMessage);
+        webSocketService.sendToAllClient("坏了，分析好像出了点问题 ~~");
         boolean b = chartService.updateById(updateChart);
         if (!b)
             log.error("更新图表失败状态错误" + chartId + ":" + execMessage);
