@@ -38,6 +38,8 @@ public class OpenaiServiceImpl implements OpenaiService {
     // 根据需要配置超时时间
     private static final Duration TIMEOUT = Duration.ofSeconds(120L);
 
+    public static final Integer SYNCHRO_MAX_TOKEN = 340;
+
     public String doChat(String userPrompt) {
         ObjectMapper mapper = defaultObjectMapper();
         Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));

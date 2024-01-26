@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import static com.yupi.springbootinit.service.impl.OpenaiServiceImpl.SYNCHRO_MAX_TOKEN;
+
 /**
  * 图表接口
  *
@@ -92,7 +94,7 @@ public class ChartController {
         // 校验文件大小及后缀
         long size = multipartFile.getSize();
         final long TEN_MB = 10 * 1024 * 1024L;
-        ThrowUtils.throwIf(size > TEN_MB, ErrorCode.PARAMS_ERROR, "文件大小大于10M");
+        ThrowUtils.throwIf(size > TEN_MB, ErrorCode.PARAMS_ERROR, "文件大小大于1M");
         String fileName = multipartFile.getOriginalFilename();
         String suffix = FileUtil.getSuffix(fileName);
         final List<String> validFileSuffix = Arrays.asList("xlsx", "csv", "xls");
@@ -111,6 +113,15 @@ public class ChartController {
         userInput.append("原始数据：\n");
             // 压缩数据
         String userData = ExcelUtils.excel2Csv(multipartFile);
+        BiResponse biResponse = new BiResponse();
+        Chart chart = new Chart();
+        // 数据规模校验 gpt3.5分析时长超过30s
+        if (userData.length() > SYNCHRO_MAX_TOKEN){
+            biResponse.setGenChart("");
+            biResponse.setGenResult("large_size");
+            biResponse.setChartId(chart.getId());
+            return ResultUtils.success(biResponse);
+        }
         userInput.append(userData).append("\n");
         String result = openaiService.doChat(userInput.toString());
         String[] splits = result.split("【【【【【");
@@ -124,8 +135,6 @@ public class ChartController {
             genChart = genChart.replaceFirst("var\\s+option\\s*=\\s*", "");
         }
 
-        // 插入数据库
-        Chart chart = new Chart();
         JsonObject chartJson = null;
         String genChartName = "";
 
@@ -183,7 +192,6 @@ public class ChartController {
         boolean saveResult = chartService.save(chart);
         if (!saveResult)
             handleChartUpdateError(chart.getId(),"图表信息保存失败");
-        BiResponse biResponse = new BiResponse();
         biResponse.setGenChart(updatedGenChart);
         biResponse.setGenResult(genResult);
         biResponse.setChartId(chart.getId());
