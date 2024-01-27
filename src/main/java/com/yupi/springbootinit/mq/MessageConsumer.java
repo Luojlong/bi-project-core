@@ -39,51 +39,48 @@ public class MessageConsumer {
         if (StringUtils.isBlank(message)) {
             // 如果失败，消息拒绝
             channel.basicNack(deliveryTag, false, false);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "消息为空");
         }
+        System.out.println("1");
         long chartId = Long.parseLong(message);
         Chart chart = chartService.getById(chartId);
         Chart updateChart = new Chart();
         updateChart.setId(chart.getId());
         updateChart.setStatus("running");
+        // 将运行状态更新
         boolean bool = chartService.updateById(updateChart);
         if (!bool) {
-            handleChartUpdateError(updateChart.getId(), "图表执行状态保存失败");
-            return;
+            setChartErrorMessage(updateChart.getId(), "图表执行状态保存失败");
+            channel.basicNack(deliveryTag, false, false);
         }
         String result = openaiService.doChat(handleUserInput(chart));
         String[] splits = result.split("【【【【【");
         if (splits.length < 3){
-            // 重新再次生成一次
-            if (deliveryTag > 1) {
-                channel.basicNack(deliveryTag, false, false);
+            try {
+                retryMessage(chartId, channel, deliveryTag, "AI生成格式错误");
+            } catch (BusinessException e) {
+                // 如果 retryMessage 抛出 BusinessException，记录错误并确认消息
+                log.error("retryMessage 抛出 BusinessException: {}", e.getMessage(), e);
+                channel.basicAck(deliveryTag, false);
             }
-            channel.basicNack(deliveryTag, false, true);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
         }
-
         String genChart = splits[1].trim();
         String genResult = splits[2].trim();
         // Echarts代码过滤 "var option ="
         if (genChart.startsWith("var option =")) {
-            // 去除 "var option ="
             genChart = genChart.replaceFirst("var\\s+option\\s*=\\s*", "");
         }
         Chart updateResult = new Chart();
         updateResult.setId(chart.getId());
         updateResult.setGenResult(genResult);
+
         JsonObject chartJson;
         String genChartName;
         String updatedGenChart = "";
         try {
             chartJson = JsonParser.parseString(genChart).getAsJsonObject();
         } catch (JsonSyntaxException e) {
-            // 重新再次生成一次
-            if (deliveryTag > 1) {
-                channel.basicNack(deliveryTag, false, false);
-            }
-            channel.basicNack(deliveryTag, false, true);
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常");
+            retryMessage(chartId, channel, deliveryTag, "图表json代码生成错误");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常，将重试");
         }
         // 自动添加图表类型
         if (StringUtils.isEmpty(chart.getName())) {
@@ -96,11 +93,14 @@ public class MessageConsumer {
             }
         }
         // 自动加入图表名称结尾并设置图表名称
+        // TODO:没有title为空指针，不会进入catch
         if (StringUtils.isEmpty(chart.getName())) {
             try {
                 genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
             } catch (JsonSyntaxException e) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
+                System.out.println("2");
+                retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在title字段");
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段，将重试");
             }
             genChartName = genChartName.replace("\"", "");
             if (!genChartName.endsWith("图") || !genChartName.endsWith("表"))
@@ -124,12 +124,14 @@ public class MessageConsumer {
         updateResult.setGenChart(updatedGenChart);
         // TODO:枚举值实现
         updateResult.setStatus("succeed");
+        System.out.println("3");
         boolean code = chartService.updateById(updateResult);
         if (!code){
+            setChartErrorMessage(updateResult.getId(), "图表代码保存失败");
             channel.basicNack(deliveryTag, false, false);
-            handleChartUpdateError(updateResult.getId(), "图表代码保存失败");
         }
         webSocketService.sendToAllClient("图表生成好啦，快去看看吧！");
+        System.out.println("4");
         channel.basicAck(deliveryTag, false);
     }
 
@@ -152,18 +154,47 @@ public class MessageConsumer {
     }
 
     /**
-     * 图表错误状态处理
+     * 设置图表错误信息
      * @param chartId
      * @param execMessage
      */
-    private void handleChartUpdateError(long chartId, String execMessage){
+    private void setChartErrorMessage(long chartId, String execMessage){
         Chart updateChart = new Chart();
         updateChart.setId(chartId);
-        updateChart.setStatus("failed");
         updateChart.setExecMessage(execMessage);
-        webSocketService.sendToAllClient("坏了，分析好像出了点问题 ~~");
         boolean b = chartService.updateById(updateChart);
-        if (!b)
+        if (!b) {
             log.error("更新图表失败状态错误" + chartId + ":" + execMessage);
+        }
+    }
+
+    /**
+     *
+     * 消息重试
+     * @param chartId
+     * @param channel
+     * @param deliveryTag
+     * @param execMessage
+     */
+    @SneakyThrows
+    private void retryMessage(long chartId, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag, String execMessage){
+        Chart chart = chartService.getById(chartId);
+        // 超过重试次数
+        if (chart.getRetry() > 0) {
+            setChartErrorMessage(chartId, execMessage);
+            channel.basicNack(deliveryTag, false, false);
+        }else {
+            System.out.println("retry");
+            Chart updateRetryChart = new Chart();
+            updateRetryChart.setId(chartId);
+            updateRetryChart.setRetry(chart.getRetry() + 1);
+            boolean updateBool = chartService.updateById(updateRetryChart);
+            if (!updateBool) {
+                setChartErrorMessage(chartId, "图表重试次数保存失败");
+                channel.basicNack(deliveryTag, false, false);
+            }
+            log.info(execMessage + "，将重试");
+            channel.basicNack(deliveryTag, false, true);
+        }
     }
 }

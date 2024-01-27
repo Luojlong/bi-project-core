@@ -75,6 +75,11 @@ public class Chart implements Serializable {
     private Date updateTime;
 
     /**
+     * 重试次数
+     */
+    private Integer retry;
+
+    /**
      * 是否删除
      */
     @TableLogic

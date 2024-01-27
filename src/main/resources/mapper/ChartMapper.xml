@@ -18,11 +18,12 @@
             <result property="userId" column="userId" jdbcType="BIGINT"/>
             <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
             <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+            <result property="retry" column="retry" jdbcType="INTEGER"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         id,goal,chartData,
         chartType,genChart,genResult,userId,execMessage,status,`name`,
-        createTime,updateTime,isDelete
+        createTime,updateTime,isDelete,retry
     </sql>
 </mapper>

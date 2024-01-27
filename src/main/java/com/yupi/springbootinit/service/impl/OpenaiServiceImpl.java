@@ -35,9 +35,10 @@ public class OpenaiServiceImpl implements OpenaiService {
     @Value("${proxy.port}")
     private int proxyPort;
 
-    // 根据需要配置超时时间
-    private static final Duration TIMEOUT = Duration.ofSeconds(120L);
+    // 超时时间
+    private static final Duration TIMEOUT = Duration.ofSeconds(225L);
 
+    // 理论最大处理数据条数，处理时间约为30s
     public static final Integer SYNCHRO_MAX_TOKEN = 340;
 
     public String doChat(String userPrompt) {
