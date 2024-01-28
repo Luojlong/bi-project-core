@@ -34,5 +34,21 @@ create table if not exists chart
     userId bigint null comment '创建用户 id',
     createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
-    isDelete tinyint default 0 not null comment '是否删除'
+    isDelete tinyint default 0 not null comment '是否删除',
+    `name` varchar(128) null comment '图表名称',
+    status varchar(128) default 'wait' not null comment '图表状态',
+    execMessage text null comment '图表状态执行信息',
+    retry int default 0 not null comment '图表分析重试次数'
 ) comment '图表信息表' collate = utf8mb4_unicode_ci;
+
+-- 积分表
+create table if not exists score
+(
+    id           bigint auto_increment comment 'id' primary key,
+    userId       bigint                   comment '创建用户id',
+    scoreTotal   bigint null  comment '总积分' default 0,
+    isSign       tinyint    comment '0表示未签到，1表示已签到' default 0,
+    createTime   datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime   datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete     tinyint      default 0                 not null comment '是否删除'
+) comment '积分表' collate = utf8mb4_unicode_ci;
