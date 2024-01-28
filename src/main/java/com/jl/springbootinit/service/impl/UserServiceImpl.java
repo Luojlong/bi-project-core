@@ -8,17 +8,21 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.jl.springbootinit.common.ErrorCode;
 import com.jl.springbootinit.constant.CommonConstant;
 import com.jl.springbootinit.exception.BusinessException;
+import com.jl.springbootinit.exception.ThrowUtils;
 import com.jl.springbootinit.mapper.UserMapper;
 import com.jl.springbootinit.model.dto.user.UserQueryRequest;
+import com.jl.springbootinit.model.entity.Score;
 import com.jl.springbootinit.model.entity.User;
 import com.jl.springbootinit.model.enums.UserRoleEnum;
 import com.jl.springbootinit.model.vo.LoginUserVO;
 import com.jl.springbootinit.model.vo.UserVO;
+import com.jl.springbootinit.service.ScoreService;
 import com.jl.springbootinit.service.UserService;
 import com.jl.springbootinit.utils.SqlUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -29,8 +33,6 @@ import org.springframework.util.DigestUtils;
 /**
  * 用户服务实现
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @Service
 @Slf4j
@@ -39,7 +41,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /**
      * 盐值，混淆密码
      */
-    private static final String SALT = "yupi";
+    private static final String SALT = "jlong";
+
+    @Resource
+    private ScoreService scoreService;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -75,6 +80,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             if (!saveResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
             }
+            //注册成功后往Score表插入数据
+            Score score = new Score();
+            //未签到
+            score.setIsSign(0);
+            //初始积分10分
+            score.setScoreTotal(10L);
+            score.setUserId(user.getId());
+            boolean scoreResult = scoreService.save(score);
+            ThrowUtils.throwIf(!scoreResult,ErrorCode.OPERATION_ERROR,"注册积分异常");
             return user.getId();
         }
     }
