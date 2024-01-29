@@ -22,6 +22,7 @@ import com.jl.springbootinit.model.vo.BiResponse;
 import com.jl.springbootinit.mq.MessageProducer;
 import com.jl.springbootinit.service.ChartService;
 import com.jl.springbootinit.service.OpenaiService;
+import com.jl.springbootinit.service.ScoreService;
 import com.jl.springbootinit.service.UserService;
 import com.jl.springbootinit.utils.ExcelUtils;
 import com.jl.springbootinit.utils.SqlUtils;
@@ -59,6 +60,9 @@ public class ChartController {
 
     @Resource
     private OpenaiService openaiService;
+
+    @Resource
+    private ScoreService scoreService;
 
     @Resource
     private RedisCacheManager redisCacheManager;
@@ -123,6 +127,7 @@ public class ChartController {
         }
         userInput.append(userData).append("\n");
         String result = openaiService.doChat(userInput.toString());
+        scoreService.deductPoints(loginUser.getId(),1L);
         String[] splits = result.split("【【【【【");
         if (splits.length < 3)
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
@@ -162,7 +167,7 @@ public class ChartController {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
             }
             genChartName = genChartName.replace("\"","");
-            if (! genChartName.endsWith("图") || ! genChartName.endsWith("表"))
+            if (! genChartName.endsWith("图") || ! genChartName.endsWith("表") || ! genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
             System.out.println(genChartName);
             chart.setName(genChartName);
@@ -320,7 +325,7 @@ public class ChartController {
                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
                 }
                 genChartName = genChartName.replace("\"", "");
-                if (!genChartName.endsWith("图") || !genChartName.endsWith("表"))
+                if (! genChartName.endsWith("图") || ! genChartName.endsWith("表") || ! genChartName.endsWith("图表"))
                     genChartName = genChartName + "图";
                 System.out.println(genChartName);
                 updateResult.setName(genChartName);

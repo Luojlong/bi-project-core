@@ -1,6 +1,7 @@
 package com.jl.springbootinit.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jl.springbootinit.service.ScoreService;
 import com.theokanning.openai.OpenAiApi;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatMessage;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import retrofit2.Retrofit;
 
+import javax.annotation.Resource;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.time.Duration;
@@ -34,6 +36,7 @@ public class OpenaiServiceImpl implements OpenaiService {
 
     @Value("${proxy.port}")
     private int proxyPort;
+
 
     // 超时时间
     private static final Duration TIMEOUT = Duration.ofSeconds(225L);

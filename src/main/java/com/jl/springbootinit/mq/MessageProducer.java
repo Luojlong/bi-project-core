@@ -20,7 +20,7 @@ public class MessageProducer {
         // 设置超时时间为4分钟（240秒），其中模型处理时间为225s
         messageProperties.setExpiration("240000");
         Message msg = new Message(message.getBytes(), messageProperties);
-        rabbitTemplate.convertAndSend(EXCHANGE_NAME, ROUTING_KEY, message);
+        rabbitTemplate.convertAndSend(EXCHANGE_NAME, ROUTING_KEY, msg);
     }
 
 }

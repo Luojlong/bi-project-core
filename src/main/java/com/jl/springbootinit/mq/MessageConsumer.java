@@ -1,6 +1,7 @@
 package com.jl.springbootinit.mq;
 
 import com.google.gson.*;
+import com.jl.springbootinit.service.ScoreService;
 import com.rabbitmq.client.Channel;
 import com.jl.springbootinit.common.ErrorCode;
 import com.jl.springbootinit.exception.BusinessException;
@@ -25,6 +26,9 @@ import static com.jl.springbootinit.mq.MqConstant.QUEUE_NAME;
 public class MessageConsumer {
     @Resource
     private ChartService chartService;
+
+    @Resource
+    private ScoreService scoreService;
 
     @Resource
     private OpenaiService openaiService;
@@ -52,6 +56,7 @@ public class MessageConsumer {
             channel.basicNack(deliveryTag, false, false);
         }
         String result = openaiService.doChat(handleUserInput(chart));
+        scoreService.deductPoints(chart.getUserId(),1L);
         String[] splits = result.split("【【【【【");
         if (splits.length < 3){
             try {
@@ -101,7 +106,7 @@ public class MessageConsumer {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段，将重试");
             }
             genChartName = genChartName.replace("\"", "");
-            if (!genChartName.endsWith("图") || !genChartName.endsWith("表"))
+            if (! genChartName.endsWith("图") || ! genChartName.endsWith("表") || ! genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
             System.out.println(genChartName);
             updateResult.setName(genChartName);
