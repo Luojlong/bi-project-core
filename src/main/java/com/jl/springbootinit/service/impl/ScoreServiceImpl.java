@@ -58,6 +58,14 @@ public class ScoreServiceImpl extends ServiceImpl<ScoreMapper, Score>
         Score score = this.getOne(queryWrapper);
         return score.getScoreTotal();
     }
+
+    @Override
+    public int getIsSign(Long userId){
+        QueryWrapper<Score> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId",userId);
+        Score score = this.getOne(queryWrapper);
+        return score.getIsSign();
+    }
 }
 
 

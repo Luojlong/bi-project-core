@@ -25,4 +25,12 @@ public interface ScoreService extends IService<Score> {
      * @return
      */
     Long getUserPoints(Long userId);
+
+    /**
+     *
+     * 获取是否签到状态
+     * @param userId
+     * @return
+     */
+    int getIsSign(Long userId);
 }

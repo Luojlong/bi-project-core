@@ -49,6 +49,18 @@ public class ScoreController {
         return ResultUtils.success(totalPoints);
     }
 
+    /**
+     * 查询签到状态
+     *
+     * @param request
+     * @return
+     */
+    @GetMapping("/getSign")
+    public BaseResponse<Integer> getSignById(HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        int isSign = scoreService.getIsSign(loginUser.getId());
+        return ResultUtils.success(isSign);
+    }
 }
 
 
