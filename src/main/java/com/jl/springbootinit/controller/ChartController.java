@@ -91,7 +91,6 @@ public class ChartController {
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
         // 校验
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
         User loginUser = userService.getLoginUser(request);
         // 校验文件大小及后缀
@@ -108,7 +107,9 @@ public class ChartController {
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：\n");
         // 拼接分析目标
-        String userGoal = goal;
+        String userGoal = "请帮我合理的分析一下数据";
+        if (StringUtils.isNotBlank(goal))
+            userGoal = goal;
             // 分析输入加入图表类型
         if (StringUtils.isNotBlank(chartType))
             userGoal += ",请使用" + chartType;
@@ -232,7 +233,6 @@ public class ChartController {
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
         // 校验
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
         User loginUser = userService.getLoginUser(request);
         // 校验文件大小及后缀
@@ -249,7 +249,9 @@ public class ChartController {
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：\n");
         // 拼接分析目标
-        String userGoal = goal;
+        String userGoal = "请帮我合理的分析一下数据";
+        if (StringUtils.isNotBlank(goal))
+            userGoal = goal;
         // 分析输入加入图表类型
         if (StringUtils.isNotBlank(chartType))
             userGoal += ",请使用" + chartType;
@@ -370,7 +372,6 @@ public class ChartController {
         String goal = genChartByAiRequest.getGoal();
         String chartType = genChartByAiRequest.getChartType();
         // 校验
-        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称过长");
         User loginUser = userService.getLoginUser(request);
         // 校验文件大小及后缀
@@ -387,7 +388,9 @@ public class ChartController {
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：\n");
         // 拼接分析目标
-        String userGoal = goal;
+        String userGoal = "请帮我合理的分析一下数据";
+        if (StringUtils.isNotBlank(goal))
+            userGoal = goal;
         // 分析输入加入图表类型
         if (StringUtils.isNotBlank(chartType))
             userGoal += ",请使用" + chartType;
