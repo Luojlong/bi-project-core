@@ -26,6 +26,7 @@ import com.jl.springbootinit.service.ScoreService;
 import com.jl.springbootinit.service.UserService;
 import com.jl.springbootinit.utils.ExcelUtils;
 import com.jl.springbootinit.utils.SqlUtils;
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -33,13 +34,11 @@ import org.redisson.api.RMap;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 
 import static com.jl.springbootinit.service.impl.OpenaiServiceImpl.SYNCHRO_MAX_TOKEN;
 
@@ -110,12 +109,12 @@ public class ChartController {
         String userGoal = "请帮我合理的分析一下数据";
         if (StringUtils.isNotBlank(goal))
             userGoal = goal;
-            // 分析输入加入图表类型
+        // 分析输入加入图表类型
         if (StringUtils.isNotBlank(chartType))
             userGoal += ",请使用" + chartType;
         userInput.append(userGoal).append("\n");
         userInput.append("原始数据：\n");
-            // 压缩数据
+        // 压缩数据
         String userData = ExcelUtils.excel2Csv(multipartFile);
         BiResponse biResponse = new BiResponse();
         Chart chart = new Chart();
@@ -127,11 +126,17 @@ public class ChartController {
             return ResultUtils.success(biResponse);
         }
         userInput.append(userData).append("\n");
-        String result = openaiService.doChat(userInput.toString());
+        String result = "";
+        try {
+            // 执行重试逻辑
+            result = openaiService.doChatWithRetry(userInput.toString());
+        } catch (Exception e) {
+            // 如果重试过程中出现异常，返回错误信息
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, e + "，AI生成错误");
+        }
         scoreService.deductPoints(loginUser.getId(),1L);
         String[] splits = result.split("【【【【【");
-        if (splits.length < 3)
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成错误");
+
         String genChart = splits[1].trim();
         String genResult = splits[2].trim();
         // Echarts代码过滤 "var option ="
@@ -140,33 +145,11 @@ public class ChartController {
             genChart = genChart.replaceFirst("var\\s+option\\s*=\\s*", "");
         }
 
-        JsonObject chartJson = null;
-        String genChartName = "";
-
-        try {
-            chartJson = JsonParser.parseString(genChart).getAsJsonObject();
-        } catch (JsonSyntaxException e) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常");
-        }
-        // 自动添加图表类型
-        if (StringUtils.isEmpty(chartType)){
-            JsonArray seriesArray = chartJson.getAsJsonArray("series");
-            for (JsonElement i : seriesArray){
-                String typeChart = i.getAsJsonObject().get("type").getAsString();
-                    String CnChartType = chartService.getChartTypeToCN(typeChart);
-                    chart.setChartType(CnChartType);
-                    System.out.println(CnChartType);
-            }
-        }else
-            chart.setChartType(chartType);
+        JsonObject chartJson = JsonParser.parseString(genChart).getAsJsonObject();
 
         // 自动加入图表名称结尾并设置图表名称
         if (StringUtils.isEmpty(name)){
-            try {
-                genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
-            } catch (JsonSyntaxException e) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
-            }
+            String genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
             genChartName = genChartName.replace("\"","");
             if (! genChartName.endsWith("图") || ! genChartName.endsWith("表") || ! genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
@@ -174,6 +157,18 @@ public class ChartController {
             chart.setName(genChartName);
         } else
             chart.setName(name);
+        // 自动添加图表类型
+        if (StringUtils.isEmpty(chartType)){
+            JsonArray seriesArray = chartJson.getAsJsonArray("series");
+            for (JsonElement i : seriesArray){
+                String typeChart = i.getAsJsonObject().get("type").getAsString();
+                String CnChartType = chartService.getChartTypeToCN(typeChart);
+                chart.setChartType(CnChartType);
+                System.out.println(CnChartType);
+            }
+        }else
+            chart.setChartType(chartType);
+
         // 加入下载按钮
         JsonObject toolbox = new JsonObject();
         toolbox.addProperty("show", true);
@@ -187,7 +182,6 @@ public class ChartController {
         chartJson.add("toolbox", toolbox);
         chartJson.remove("title");
         String updatedGenChart = chartJson.toString();
-        
         chart.setGoal(goal);
         chart.setChartData(userData);
         chart.setGenChart(updatedGenChart);
@@ -546,8 +540,6 @@ public class ChartController {
         long size = chartQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-//        Page<Chart> chartPage = chartService.page(new Page<>(current, size),
-//                getQueryWrapper(chartQueryRequest));
         String cacheKey = "ChartController_listMyChartVOByPage_" + chartQueryRequest.getId();
         RMap<String, Object> cachedResult = redisCacheManager.getCachedResult(cacheKey);
 
@@ -624,5 +616,4 @@ public class ChartController {
                 sortField);
         return queryWrapper;
     }
-
 }

@@ -13,4 +13,11 @@ public interface OpenaiService {
      */
     String doChat(String prompt);
 
+    /**
+     * AI 对话错误重试
+     * @param userPrompt
+     * @return
+     * @throws Exception
+     */
+    String doChatWithRetry(String userPrompt) throws Exception;
 }
