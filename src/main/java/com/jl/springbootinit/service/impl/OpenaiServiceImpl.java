@@ -74,7 +74,7 @@ public class OpenaiServiceImpl implements OpenaiService {
                 "原始数据：\n" + "{csv格式的原始数据，用,作为分隔符}\n" +
                 "请根据这两部分内容，按照以下指定格式生成内容,其中包括生成分隔符\"【【【【【\"，同时分析结论请直接给出（此外不要输出任何多余的开头、结尾、注释）\n" +
                 "【【【【【\n" +
-                "{前端 Echarts V5 的 option 配置对象js代码(json格式)，代码需要包括title.text（需要该图的名称）部分、图例部分（即legend元素），合理地将数据进行可视化，图表要求：1、若图表有轴线请将轴线画出，如y轴线，颜色为黑色2、坐标字体为黑色，不要生成任何多余的内容，比如注释}\n" +
+                "{前端 Echarts V5 的 option 配置对象js代码(json格式)，代码需要包括title.text（需要该图的名称）部分、图例部分（即legend元素，字体应为黑色），合理地将数据进行可视化，图表要求：1、若图表有轴线请将轴线画出，如y轴线，颜色为黑色2、坐标字体为黑色，不要生成任何多余的内容，比如注释}\n" +
                 "【【【【【\n" +
                 "{请直接明确的数据分析结论、越详细越好（字数越多越好），不要生成多余的注释}";
         ChatMessage systemMessage = new ChatMessage(ChatMessageRole.USER.value(), systemPrompt);
