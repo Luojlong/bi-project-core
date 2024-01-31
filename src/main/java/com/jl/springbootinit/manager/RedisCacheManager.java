@@ -15,16 +15,18 @@ public class RedisCacheManager {
     @Resource
     private RedissonClient redissonClient;
 
-    public RMap<String, Object> getCachedResult(String cacheKey) {
-        return redissonClient.getMap(cacheKey);
+    public Page<Chart> getCachedResult(String cacheKey) {
+        // 从缓存中获取数据
+        RMap<String, Object> cache = redissonClient.getMap(cacheKey);
+        return (Page<Chart>) cache.get(cacheKey);
     }
 
     public void putCachedResult(String cacheKey, Page<Chart> chartPage) {
+        // 放入缓存
         RMap<String, Object> cache = redissonClient.getMap(cacheKey);
-
         cache.put(cacheKey, chartPage);
         // 设置缓存过期时间为60秒
-        cache.expire(Duration.ofSeconds(300));
+        cache.expire(Duration.ofSeconds(60));
     }
 
     @Async

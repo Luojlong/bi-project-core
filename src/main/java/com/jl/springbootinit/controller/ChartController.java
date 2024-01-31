@@ -414,7 +414,6 @@ public class ChartController {
         return ResultUtils.success(biResponse);
     }
 
-
     /**
      * 创建
      *
@@ -541,22 +540,24 @@ public class ChartController {
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         String cacheKey = "ChartController_listMyChartVOByPage_" + chartQueryRequest.getId();
-        RMap<String, Object> cachedResult = redisCacheManager.getCachedResult(cacheKey);
+        Page<Chart> cachedChartPage = redisCacheManager.getCachedResult(cacheKey);
+        if (cachedChartPage != null) {
+            // 缓存命中，比较缓存数据与数据库数据是否一致
+            Page<Chart> databaseChartPage = chartService.page(new Page<>(current, size),
+                    getQueryWrapper(chartQueryRequest));
+            if (!chartService.isSamePage(cachedChartPage, databaseChartPage)) {
+                redisCacheManager.putCachedResult(cacheKey, databaseChartPage);
+            }
+            return ResultUtils.success(cachedChartPage);
+        } else {
+            // 缓存未命中，从数据库中查询数据，并放入缓存
+            Page<Chart> chartPage = chartService.page(new Page<>(current, size),
+                    getQueryWrapper(chartQueryRequest));
 
-        if (cachedResult.size() > 0) {
-            // 如果缓存中有结果，则直接返回缓存的结果
-            Page<Chart> chartPage = (Page<Chart>) cachedResult.get(cacheKey);
+            redisCacheManager.asyncPutCachedResult(cacheKey, chartPage);
+
             return ResultUtils.success(chartPage);
         }
-
-        // 如果缓存中没有结果，则查询数据库
-        Page<Chart> chartPage = chartService.page(new Page<>(current, size),
-                getQueryWrapper(chartQueryRequest));
-
-        // 将查询结果放入缓存
-        redisCacheManager.asyncPutCachedResult(cacheKey, chartPage);
-
-        return ResultUtils.success(chartPage);
     }
 
 

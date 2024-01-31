@@ -99,11 +99,23 @@ public class MessageConsumer {
         if (StringUtils.isEmpty(chart.getName())) {
             JsonElement titleElement = chartJson.getAsJsonObject("title").get("text");
             if (titleElement == null || titleElement.isJsonNull()) {
-                retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在title字段");
+                try {
+                    retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在title元素或无title.text元素");
+                } catch (BusinessException e) {
+                    // 如果 retryMessage 抛出 BusinessException，记录错误并确认消息
+                    log.error("retryMessage 抛出 BusinessException: {}", e.getMessage(), e);
+                    channel.basicAck(deliveryTag, false);
+                }
             }
             String titleText = titleElement.getAsString();
             if (titleText.isEmpty()) {
-                retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在text字段");
+                try {
+                    retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在text字段");
+                } catch (BusinessException e) {
+                    // 如果 retryMessage 抛出 BusinessException，记录错误并确认消息
+                    log.error("retryMessage 抛出 BusinessException: {}", e.getMessage(), e);
+                    channel.basicAck(deliveryTag, false);
+                }
             }
             String genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
             genChartName = genChartName.replace("\"", "");
