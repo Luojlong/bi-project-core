@@ -78,7 +78,6 @@ public class MessageConsumer {
         updateResult.setGenResult(genResult);
 
         JsonObject chartJson;
-        String genChartName;
         String updatedGenChart = "";
         try {
             chartJson = JsonParser.parseString(genChart).getAsJsonObject();
@@ -97,14 +96,16 @@ public class MessageConsumer {
             }
         }
         // 自动加入图表名称结尾并设置图表名称
-        // TODO:没有title为空指针，不会进入catch
         if (StringUtils.isEmpty(chart.getName())) {
-            try {
-                genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
-            } catch (JsonSyntaxException e) {
+            JsonElement titleElement = chartJson.getAsJsonObject("title").get("text");
+            if (titleElement == null || titleElement.isJsonNull()) {
                 retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在title字段");
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段，将重试");
             }
+            String titleText = titleElement.getAsString();
+            if (titleText.isEmpty()) {
+                retryMessage(chartId, channel, deliveryTag, "生成的json代码不存在text字段");
+            }
+            String genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
             genChartName = genChartName.replace("\"", "");
             if (! genChartName.endsWith("图") || ! genChartName.endsWith("表") || ! genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
