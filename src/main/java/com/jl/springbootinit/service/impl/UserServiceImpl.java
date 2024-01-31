@@ -86,7 +86,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             //未签到
             score.setIsSign(0);
             //初始积分10分
-            score.setScoreTotal(10L);
+            score.setScoreTotal(100L);
             score.setUserId(user.getId());
             boolean scoreResult = scoreService.save(score);
             ThrowUtils.throwIf(!scoreResult,ErrorCode.OPERATION_ERROR,"注册积分异常");

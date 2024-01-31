@@ -27,7 +27,6 @@ public class ScoreServiceImpl extends ServiceImpl<ScoreMapper, Score>
         ThrowUtils.throwIf(score == null, ErrorCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(score.getIsSign()==1,ErrorCode.PARAMS_ERROR,"领取失败，今日已领取");
         Long scoreTotal = score.getScoreTotal();
-        ThrowUtils.throwIf(scoreTotal==100,ErrorCode.PARAMS_ERROR,"领取失败，已达上线");
         UpdateWrapper<Score> updateWrapper = new UpdateWrapper();
         updateWrapper
                 //此处暂时写死签到积分
