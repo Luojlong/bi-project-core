@@ -160,15 +160,15 @@ public class ChartController {
         // 自动添加图表类型
         if (StringUtils.isEmpty(chartType)){
             JsonArray seriesArray = chartJson.getAsJsonArray("series");
-            for (JsonElement i : seriesArray){
-                String typeChart = i.getAsJsonObject().get("type").getAsString();
+            if (seriesArray.size() > 0) {
+                JsonObject firstSeries = seriesArray.get(0).getAsJsonObject();
+                String typeChart = firstSeries.getAsJsonObject().get("type").getAsString();
                 String CnChartType = chartService.getChartTypeToCN(typeChart);
                 chart.setChartType(CnChartType);
                 System.out.println(CnChartType);
             }
         }else
             chart.setChartType(chartType);
-
         // 加入下载按钮
         JsonObject toolbox = new JsonObject();
         toolbox.addProperty("show", true);
@@ -393,7 +393,6 @@ public class ChartController {
         // 压缩数据
         String userData = ExcelUtils.excel2Csv(multipartFile);
         userInput.append(userData).append("\n");
-
         // 插入数据库
         Chart chart = new Chart();
         chart.setStatus("wait");
@@ -414,6 +413,39 @@ public class ChartController {
         return ResultUtils.success(biResponse);
     }
 
+    /**
+     * 文件AI分析
+     *
+     * @param id
+     * @return
+     */
+    @GetMapping("/gen/async/mq/retry")
+    public BaseResponse<BiResponse> retryGenChartByAiAsyncMq(@RequestParam Long id) {
+        System.out.println(id);
+        log.info(String.valueOf(id));
+        Chart byId = chartService.getById(id);
+        String userGoal = byId.getGoal();
+        String userData = byId.getChartData();
+        // 构造用户输入
+        StringBuilder userInput = new StringBuilder();
+        userInput.append("分析需求：\n");
+        // 拼接分析目标
+        userInput.append(userGoal).append("\n");
+        userInput.append("原始数据：\n");
+        userInput.append(userData).append("\n");
+        // 插入数据库
+        Chart chart = new Chart();
+        chart.setStatus("wait");
+        chart.setId(id);
+        boolean saveResult = chartService.updateById(chart);
+        if (!saveResult)
+            handleChartUpdateError(chart.getId(), "图表状态更新失败");
+        long newChartId = chart.getId();
+        messageProducer.sendMessage(String.valueOf(newChartId));
+        BiResponse biResponse = new BiResponse();
+        biResponse.setChartId(newChartId);
+        return ResultUtils.success(biResponse);
+    }
     /**
      * 创建
      *
@@ -553,9 +585,7 @@ public class ChartController {
             // 缓存未命中，从数据库中查询数据，并放入缓存
             Page<Chart> chartPage = chartService.page(new Page<>(current, size),
                     getQueryWrapper(chartQueryRequest));
-
             redisCacheManager.asyncPutCachedResult(cacheKey, chartPage);
-
             return ResultUtils.success(chartPage);
         }
     }
@@ -608,9 +638,9 @@ public class ChartController {
         String sortOrder = chartQueryRequest.getSortOrder();
 
         queryWrapper.eq(id != null && id > 0, "id", id);
-        queryWrapper.eq(StringUtils.isNotBlank(goal), "goal", goal);
+        queryWrapper.like(StringUtils.isNotBlank(goal), "goal", goal);
         queryWrapper.like(StringUtils.isNotBlank(name), "name", name);
-        queryWrapper.eq(StringUtils.isNotBlank(chartType), "chartType", chartType);
+        queryWrapper.like(StringUtils.isNotBlank(chartType), "chartType", chartType);
         queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
         queryWrapper.eq("isDelete", false);
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),

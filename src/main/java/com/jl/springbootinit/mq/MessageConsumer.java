@@ -56,6 +56,7 @@ public class MessageConsumer {
             channel.basicNack(deliveryTag, false, false);
         }
         String result = openaiService.doChat(handleUserInput(chart));
+        log.error("分析完了");
         scoreService.deductPoints(chart.getUserId(),1L);
         String[] splits = result.split("【【【【【");
         if (splits.length < 3){
@@ -74,9 +75,10 @@ public class MessageConsumer {
             genChart = genChart.replaceFirst("var\\s+option\\s*=\\s*", "");
         }
         Chart updateResult = new Chart();
-        updateResult.setId(chart.getId());
+        updateResult.setId(chartId);
         updateResult.setGenResult(genResult);
-
+        log.error("设置分析结果："+ genResult);
+        log.error("设置分析代码："+ genChart);
         JsonObject chartJson;
         String updatedGenChart = "";
         try {
@@ -86,13 +88,18 @@ public class MessageConsumer {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码解析异常，将重试");
         }
         // 自动添加图表类型
-        if (StringUtils.isEmpty(chart.getName())) {
-            JsonArray seriesArray = chartJson.getAsJsonArray("series");
-            for (JsonElement i : seriesArray) {
-                String typeChart = i.getAsJsonObject().get("type").getAsString();
-                String CnChartType = chartService.getChartTypeToCN(typeChart);
-                updateResult.setChartType(CnChartType);
-                System.out.println(CnChartType);
+        if (StringUtils.isEmpty(chart.getChartType())) {
+            if (chartJson.has("series") && chartJson.get("series").isJsonArray()) {
+                JsonArray seriesArray = chartJson.getAsJsonArray("series");
+                if (seriesArray.size() > 0) {
+                    JsonObject firstSeries = seriesArray.get(0).getAsJsonObject();
+                    if (firstSeries.has("type")) {
+                        String typeChart = firstSeries.get("type").getAsString();
+                        String CnChartType = chartService.getChartTypeToCN(typeChart);
+                        updateResult.setChartType(CnChartType);
+                        System.out.println(CnChartType);
+                    }
+                }
             }
         }
         // 自动加入图表名称结尾并设置图表名称
@@ -123,21 +130,22 @@ public class MessageConsumer {
                 genChartName = genChartName + "图";
             System.out.println(genChartName);
             updateResult.setName(genChartName);
-            // 加入下载按钮
-            JsonObject toolbox = new JsonObject();
-            toolbox.addProperty("show", true);
-            JsonObject saveAsImage = new JsonObject();
-            saveAsImage.addProperty("show", true);
-            saveAsImage.addProperty("excludeComponents", "['toolbox']");
-            saveAsImage.addProperty("pixelRatio", 2);
-            JsonObject feature = new JsonObject();
-            feature.add("saveAsImage", saveAsImage);
-            toolbox.add("feature", feature);
-            chartJson.add("toolbox", toolbox);
-            chartJson.remove("title");
-            updatedGenChart = chartJson.toString();
         }
+        // 加入下载按钮
+        JsonObject toolbox = new JsonObject();
+        toolbox.addProperty("show", true);
+        JsonObject saveAsImage = new JsonObject();
+        saveAsImage.addProperty("show", true);
+        saveAsImage.addProperty("excludeComponents", "['toolbox']");
+        saveAsImage.addProperty("pixelRatio", 2);
+        JsonObject feature = new JsonObject();
+        feature.add("saveAsImage", saveAsImage);
+        toolbox.add("feature", feature);
+        chartJson.add("toolbox", toolbox);
+        chartJson.remove("title");
+        updatedGenChart = chartJson.toString();
         updateResult.setGenChart(updatedGenChart);
+        log.error("genchart" + updatedGenChart);
         // TODO:枚举值实现
         updateResult.setStatus("succeed");
         boolean code = chartService.updateById(updateResult);
@@ -146,6 +154,7 @@ public class MessageConsumer {
             channel.basicNack(deliveryTag, false, false);
         }
         webSocketService.sendToAllClient("图表生成好啦，快去看看吧！");
+        log.error("ACK");
         channel.basicAck(deliveryTag, false);
     }
 
