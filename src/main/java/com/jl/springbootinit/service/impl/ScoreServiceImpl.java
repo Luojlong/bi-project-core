@@ -30,6 +30,7 @@ public class ScoreServiceImpl extends ServiceImpl<ScoreMapper, Score>
         UpdateWrapper<Score> updateWrapper = new UpdateWrapper();
         updateWrapper
                 //此处暂时写死签到积分
+                .eq("userId",userId)
                 .set("scoreTotal",scoreTotal+1)
                 .set("isSign",1);
         boolean r = this.update(updateWrapper);
@@ -45,6 +46,7 @@ public class ScoreServiceImpl extends ServiceImpl<ScoreMapper, Score>
         Long scoreTotal = score.getScoreTotal();
         UpdateWrapper<Score> updateWrapper = new UpdateWrapper();
         updateWrapper
+                .eq("userId",userId)
                 .set("scoreTotal",scoreTotal-points);
         boolean r = this.update(updateWrapper);
         ThrowUtils.throwIf(!r, ErrorCode.OPERATION_ERROR);
