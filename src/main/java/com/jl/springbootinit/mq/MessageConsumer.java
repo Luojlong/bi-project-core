@@ -126,7 +126,8 @@ public class MessageConsumer {
             }
             String genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
             genChartName = genChartName.replace("\"", "");
-            if (! genChartName.endsWith("图") || ! genChartName.endsWith("表") || ! genChartName.endsWith("图表"))
+            log.error(genChartName);
+            if (! genChartName.endsWith("图") && ! genChartName.endsWith("表") && ! genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
             System.out.println(genChartName);
             updateResult.setName(genChartName);
