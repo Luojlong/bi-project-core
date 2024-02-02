@@ -566,6 +566,7 @@ public class ChartController {
         if (chartQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        log.error(String.valueOf(chartQueryRequest));
         User loginUser = userService.getLoginUser(request);
         chartQueryRequest.setUserId(loginUser.getId());
         long current = chartQueryRequest.getCurrent();
@@ -637,15 +638,28 @@ public class ChartController {
         Long userId = chartQueryRequest.getUserId();
         String sortField = chartQueryRequest.getSortField();
         String sortOrder = chartQueryRequest.getSortOrder();
-
-        queryWrapper.eq(id != null && id > 0, "id", id);
-        queryWrapper.like(StringUtils.isNotBlank(goal), "goal", goal);
-        queryWrapper.like(StringUtils.isNotBlank(name), "name", name);
-        queryWrapper.like(StringUtils.isNotBlank(chartType), "chartType", chartType);
-        queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
-        queryWrapper.eq("isDelete", false);
-        queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
-                sortField);
+        // 当我进行图表查询时
+        if(StringUtils.isNotBlank(goal) && StringUtils.isNotBlank(name) && StringUtils.isNotBlank(chartType))
+            queryWrapper.and(wrapper -> wrapper
+                            .like(StringUtils.isNotBlank(goal), "goal", "%" + goal + "%")
+                            .or()
+                            .like(StringUtils.isNotBlank(name), "name", "%" + name + "%")
+                            .or()
+                            .like(StringUtils.isNotBlank(chartType), "chartType", "%" + chartType + "%"))
+                    .eq(ObjectUtils.isNotEmpty(userId), "userId", userId)
+                    .eq("isDelete", false)
+                    .orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
+                    sortField);
+        else{
+            queryWrapper.eq(id != null && id > 0, "id", id);
+            queryWrapper.like(StringUtils.isNotBlank(goal), "goal", goal);
+            queryWrapper.like(StringUtils.isNotBlank(name), "name", name);
+            queryWrapper.like(StringUtils.isNotBlank(chartType), "chartType", chartType);
+            queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
+            queryWrapper.eq("isDelete", false);
+            queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
+                    sortField);
+        }
         return queryWrapper;
     }
 }
