@@ -16,13 +16,15 @@ public class RedissonConfig {
     private String host;
 
     private Integer port;
-
+    // 上线密码
+    private String password;
     @Bean
     public RedissonClient redissonClient() {
         Config config = new Config();
         config.useSingleServer()
                 .setDatabase(1)
-                .setAddress("redis://" + host + ":" + port);
+                .setAddress("redis://" + host + ":" + port)
+                .setPassword(password);
         RedissonClient redisson = Redisson.create(config);
     return redisson;
     }

@@ -38,11 +38,11 @@ public class OpenaiServiceImpl implements OpenaiService {
     @Value("${openai.model}")
     private String model;
 
-    @Value("${proxy.host}")
-    private String proxyHost;
-
-    @Value("${proxy.port}")
-    private int proxyPort;
+//    @Value("${proxy.host}")
+//    private String proxyHost;
+//
+//    @Value("${proxy.port}")
+//    private int proxyPort;
 
 
     // 超时时间
@@ -60,10 +60,10 @@ public class OpenaiServiceImpl implements OpenaiService {
 
     public String doChat(String userPrompt) {
         ObjectMapper mapper = defaultObjectMapper();
-        Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+//        Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
         OkHttpClient client = defaultClient(openaiApiKey, TIMEOUT)
                 .newBuilder()
-                .proxy(proxy)
+//                .proxy(proxy)
                 .build();
         Retrofit retrofit = defaultRetrofit(client, mapper);
         OpenAiApi api = retrofit.create(OpenAiApi.class);
@@ -87,7 +87,6 @@ public class OpenaiServiceImpl implements OpenaiService {
                 .messages(messages)
                 .build();
         ChatMessage responseMessage = service.createChatCompletion(chatCompletionRequest).getChoices().get(0).getMessage();
-        System.out.println(responseMessage);
         return responseMessage.getContent();
     }
 

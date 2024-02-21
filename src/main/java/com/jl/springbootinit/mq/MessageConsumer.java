@@ -56,7 +56,6 @@ public class MessageConsumer {
             channel.basicNack(deliveryTag, false, false);
         }
         String result = openaiService.doChat(handleUserInput(chart));
-        log.error("分析完了");
         scoreService.deductPoints(chart.getUserId(),1L);
         String[] splits = result.split("【【【【【");
         if (splits.length < 3){
@@ -77,8 +76,6 @@ public class MessageConsumer {
         Chart updateResult = new Chart();
         updateResult.setId(chartId);
         updateResult.setGenResult(genResult);
-        log.error("设置分析结果："+ genResult);
-        log.error("设置分析代码："+ genChart);
         JsonObject chartJson;
         String updatedGenChart = "";
         try {
@@ -97,7 +94,6 @@ public class MessageConsumer {
                         String typeChart = firstSeries.get("type").getAsString();
                         String CnChartType = chartService.getChartTypeToCN(typeChart);
                         updateResult.setChartType(CnChartType);
-                        System.out.println(CnChartType);
                     }
                 }
             }
@@ -126,10 +122,8 @@ public class MessageConsumer {
             }
             String genChartName = String.valueOf(chartJson.getAsJsonObject("title").get("text"));
             genChartName = genChartName.replace("\"", "");
-            log.error(genChartName);
             if (! genChartName.endsWith("图") && ! genChartName.endsWith("表") && ! genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
-            System.out.println(genChartName);
             updateResult.setName(genChartName);
         }
         // 加入下载按钮
@@ -146,7 +140,6 @@ public class MessageConsumer {
         chartJson.remove("title");
         updatedGenChart = chartJson.toString();
         updateResult.setGenChart(updatedGenChart);
-        log.error("genchart" + updatedGenChart);
         // TODO:枚举值实现
         updateResult.setStatus("succeed");
         boolean code = chartService.updateById(updateResult);
@@ -155,7 +148,6 @@ public class MessageConsumer {
             channel.basicNack(deliveryTag, false, false);
         }
         webSocketService.sendToAllClient("图表生成好啦，快去看看吧！");
-        log.error("ACK");
         channel.basicAck(deliveryTag, false);
     }
 

@@ -24,6 +24,7 @@ import com.jl.springbootinit.service.ChartService;
 import com.jl.springbootinit.service.OpenaiService;
 import com.jl.springbootinit.service.ScoreService;
 import com.jl.springbootinit.service.UserService;
+import com.jl.springbootinit.utils.Csv2String;
 import com.jl.springbootinit.utils.ExcelUtils;
 import com.jl.springbootinit.utils.SqlUtils;
 import com.sun.org.apache.xpath.internal.operations.Bool;
@@ -38,6 +39,7 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.*;
 
 import static com.jl.springbootinit.service.impl.OpenaiServiceImpl.SYNCHRO_MAX_TOKEN;
@@ -115,7 +117,11 @@ public class ChartController {
         userInput.append(userGoal).append("\n");
         userInput.append("原始数据：\n");
         // 压缩数据
-        String userData = ExcelUtils.excel2Csv(multipartFile);
+        String userData = "";
+        if (Objects.equals(suffix, "csv"))
+            userData = Csv2String.MultipartFileToString(multipartFile);
+        else
+            userData = ExcelUtils.excel2Csv(multipartFile);
         BiResponse biResponse = new BiResponse();
         Chart chart = new Chart();
         // 数据规模校验 gpt3.5分析时长超过30s
@@ -153,7 +159,6 @@ public class ChartController {
             genChartName = genChartName.replace("\"","");
             if ( !genChartName.endsWith("图") && !genChartName.endsWith("表") && !genChartName.endsWith("图表"))
                 genChartName = genChartName + "图";
-            System.out.println(genChartName);
             chart.setName(genChartName);
         } else
             chart.setName(name);
@@ -165,7 +170,6 @@ public class ChartController {
                 String typeChart = firstSeries.getAsJsonObject().get("type").getAsString();
                 String CnChartType = chartService.getChartTypeToCN(typeChart);
                 chart.setChartType(CnChartType);
-                System.out.println(CnChartType);
             }
         }else
             chart.setChartType(chartType);
@@ -270,10 +274,8 @@ public class ChartController {
             handleChartUpdateError(chart.getId(), "图表初始数据保存失败");
         BiResponse biResponse = new BiResponse();
         biResponse.setChartId(chart.getId());
-        log.info("还没异步操作");
         // TODO:   用try catch解决任务队列满了抛异常
         CompletableFuture.runAsync(()->{
-            log.info("进入异步操作");
             Chart updateChart = new Chart();
             updateChart.setId(chart.getId());
             updateChart.setStatus("running");
@@ -310,7 +312,6 @@ public class ChartController {
                     String typeChart = i.getAsJsonObject().get("type").getAsString();
                     String CnChartType = chartService.getChartTypeToCN(typeChart);
                     updateResult.setChartType(CnChartType);
-                    System.out.println(CnChartType);
                 }
             }
             // 自动加入图表名称结尾并设置图表名称
@@ -321,10 +322,8 @@ public class ChartController {
                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "json代码不存在title字段");
                 }
                 genChartName = genChartName.replace("\"", "");
-                log.error(genChartName);
                 if ( !genChartName.endsWith("图") && !genChartName.endsWith("表") && !genChartName.endsWith("图表"))
                     genChartName = genChartName + "图";
-                System.out.println(genChartName);
                 updateResult.setName(genChartName);
                 // 加入下载按钮
                 JsonObject toolbox = new JsonObject();
@@ -422,7 +421,6 @@ public class ChartController {
      */
     @GetMapping("/gen/async/mq/retry")
     public BaseResponse<BiResponse> retryGenChartByAiAsyncMq(@RequestParam Long id) {
-        System.out.println(id);
         log.info(String.valueOf(id));
         Chart byId = chartService.getById(id);
         String userGoal = byId.getGoal();
@@ -566,7 +564,6 @@ public class ChartController {
         if (chartQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        log.error(String.valueOf(chartQueryRequest));
         User loginUser = userService.getLoginUser(request);
         chartQueryRequest.setUserId(loginUser.getId());
         long current = chartQueryRequest.getCurrent();
