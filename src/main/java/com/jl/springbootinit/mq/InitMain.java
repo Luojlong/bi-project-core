@@ -16,10 +16,7 @@ public class InitMain {
     public static void main(String[] args) {
         try {
             ConnectionFactory factory = new ConnectionFactory();
-            factory.setHost("47.236.114.183");
-            factory.setPort(5672);
-            factory.setPassword("123456");
-            factory.setUsername("admin");
+            factory.setHost("localhost");
             Connection connection = factory.newConnection();
             Channel channel = connection.createChannel();
 
