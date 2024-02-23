@@ -1,165 +1,59 @@
-# SpringBoot 项目初始模板
+# 基于Openai的智能BI平台
 
-> 作者：[程序员鱼皮](https://github.com/liyupi)
-> 仅分享于 [编程导航知识星球](https://yupi.icu)
+> 作者：JL
 
-基于 Java SpringBoot 的项目初始模板，整合了常用框架和主流业务的示例代码。
 
-只需 1 分钟即可完成内容网站的后端！！！大家还可以在此基础上快速开发自己的项目。
+利用大语言模型分析图表数据并自动生成图表分析结论及图表数据可视化图。快速高效处理复杂的数据分析过程。
 
-[toc]
 
-## 模板特点
+## 项目介绍
 
-### 主流框架 & 特性
+### 主要框架及技术使用
 
-- Spring Boot 2.7.x（贼新）
+- Spring Boot 2.7.2
 - Spring MVC
-- MyBatis + MyBatis Plus 数据访问（开启分页）
-- Spring Boot 调试工具和项目处理器
-- Spring AOP 切面编程
+- MyBatis + MyBatis Plus 数据访问
+- Openai API
 - Spring Scheduler 定时任务
-- Spring 事务注解
-
-### 数据存储
-
+- Guava 重试机制
+- RabbitMQ 消息队列持久化任务
+- Redission 的 RateLimiter 限流及图表查询缓存
+- WebSocket 任务消息实时发送
+- Ant design pro（React）
+- Echarts 图表展示
 - MySQL 数据库
-- Redis 内存数据库
-- Elasticsearch 搜索引擎
-- 腾讯云 COS 对象存储
 
-### 工具类
+### 基本功能
 
-- Easy Excel 表格处理
-- Hutool 工具库
-- Gson 解析库
-- Apache Commons Lang3 工具类
-- Lombok 注解
-
-### 业务特性
-
-- Spring Session Redis 分布式登录
-- 全局请求响应拦截器（记录日志）
-- 全局异常处理器
-- 自定义错误码
-- 封装通用响应类
-- Swagger + Knife4j 接口文档
-- 自定义权限注解 + 全局校验
-- 全局跨域处理
-- 长整数丢失精度解决
-- 多环境配置
+- 用户可输入分析目标、图表类型、图表名称后上传文件进行分析，支持仅上传文件
+- 分析模式支持两种模型（同步和异步分析）提高用户体验
+- 我的图表支持用户查看图表原始数据
+- 支持根据图表名称、图表类型、图表分析目标查看和检索图表
+- 支持用户对失败的图表进行手动重试
+- 支持图表管理页面手动刷新，保证获取到图表的最新状态
+- 加入积分系统，每次调用分析消耗积分，可通过签到获取积分
+- 任务执行成功或失败，弹出实时消息通知
 
 
-## 业务功能
+### 核心流程
+![同步](doc/%E5%9B%BE%E7%89%871.png)
+![异步](doc/%E5%9B%BE%E7%89%872.png)
 
-- 提供示例 SQL（用户、帖子、帖子点赞、帖子收藏表）
-- 用户登录、注册、注销、更新、检索、权限管理
-- 帖子创建、删除、编辑、更新、数据库检索、ES 灵活检索
-- 帖子点赞、取消点赞
-- 帖子收藏、取消收藏、检索已收藏帖子
-- 帖子全量同步 ES、增量同步 ES 定时任务
-- 支持微信开放平台登录
-- 支持微信公众号订阅、收发消息、设置菜单
-- 支持分业务的文件上传
+### 项目细节
 
-### 单元测试
+- 精心设计大语言模型 Prompt 提高 AI 生成的准确性并提升冗余度
+- 为节约计算成本，使用 Easy Excel 解析用户上传的 XLSX 表格数据文件并压缩为 CSV，同时实测提高了 20% 的单次输入数据量
+- 为防止某用户恶意占用系统资源，基于 Redisson 的 RateLimiter 买现分布式限流，控制单用户访问的频率
+- 由于 AI 分析时间较长，基于自定义IO密集型线程池＋任务队列实现了 AIGC 的并发执行和异步化，提高用户体验
+- 由于本地任务队列重启丢失数据，使用 RabbitMQ (分布式消息队列）来接受并持久化任务消息，通过 Direct 交换机转发给解耦的 Al 生成模块消费并处理任务，提高了系统的可靠性
+- 使用死信队列处理异步分析异常情况，同时将图表状态设为失败
+- 若任务未提交到队列中（或队列满时），通过定时任务将失败状态图表放入队列中
+- 给任务的执行增加 guava Retrying 重试机制，保证同步分析系统可靠性和稳定性。
+- 任务成功或失败通过Websocket实时反馈给用户，并更新图表页面，同时可对失败任务手动重试
+- 每个用户注册可获得10个积分，每次进行分析需消耗一个积分，可通过每日签到增加积分数
+- 使用 Redission 进行用户静态的图表数据缓存，用于提高加载速度
 
-- JUnit5 单元测试
-- 示例单元测试类
-
-### 架构设计
-
-- 合理分层
-
-
-## 快速上手
-
-> 所有需要修改的地方鱼皮都标记了 `todo`，便于大家找到修改的位置~
-
-### MySQL 数据库
-
-1）修改 `application.yml` 的数据库配置为你自己的：
-
-```yml
-spring:
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/my_db
-    username: root
-    password: 123456
-```
-
-2）执行 `sql/create_table.sql` 中的数据库语句，自动创建库表
-
-3）启动项目，访问 `http://localhost:8101/api/doc.html` 即可打开接口文档，不需要写前端就能在线调试接口了~
-
-![](doc/swagger.png)
-
-### Redis 分布式登录
-
-1）修改 `application.yml` 的 Redis 配置为你自己的：
-
-```yml
-spring:
-  redis:
-    database: 1
-    host: localhost
-    port: 6379
-    timeout: 5000
-    password: 123456
-```
-
-2）修改 `application.yml` 中的 session 存储方式：
-
-```yml
-spring:
-  session:
-    store-type: redis
-```
-
-3）移除 `MainApplication` 类开头 `@SpringBootApplication` 注解内的 exclude 参数：
-
-修改前：
-
-```java
-@SpringBootApplication(exclude = {RedisAutoConfiguration.class})
-```
-
-修改后：
-
-
-```java
-@SpringBootApplication
-```
-
-### Elasticsearch 搜索引擎
-
-1）修改 `application.yml` 的 Elasticsearch 配置为你自己的：
-
-```yml
-spring:
-  elasticsearch:
-    uris: http://localhost:9200
-    username: root
-    password: 123456
-```
-
-2）复制 `sql/post_es_mapping.json` 文件中的内容，通过调用 Elasticsearch 的接口或者 Kibana Dev Tools 来创建索引（相当于数据库建表）
-
-```
-PUT post_v1
-{
- 参数见 sql/post_es_mapping.json 文件
-}
-```
-
-这步不会操作的话需要补充下 Elasticsearch 的知识，或者自行百度一下~
-
-3）开启同步任务，将数据库的帖子同步到 Elasticsearch
-
-找到 job 目录下的 `FullSyncPostToEs` 和 `IncSyncPostToEs` 文件，取消掉 `@Component` 注解的注释，再次执行程序即可触发同步：
-
-```java
-// todo 取消注释开启任务
-//@Component
-```
+### 项目界面
+![输入图片说明](doc/%E5%9B%BE%E7%89%873.PNG)
+![输入图片说明](doc/%E5%9B%BE%E7%89%874.PNG)
+![输入图片说明](doc/%E5%9B%BE%E7%89%875.PNG)
