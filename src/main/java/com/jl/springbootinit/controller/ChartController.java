@@ -430,6 +430,10 @@ public class ChartController {
         Chart byId = chartService.getById(id);
         String userGoal = byId.getGoal();
         String userData = byId.getChartData();
+        String userStatus = byId.getStatus();
+        // 防止多次重试
+        if (StringUtils.equals(userStatus, "wait"))
+            return null;
         // 构造用户输入
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求：\n");
