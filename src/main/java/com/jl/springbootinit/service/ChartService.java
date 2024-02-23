@@ -33,4 +33,6 @@ public interface ChartService extends IService<Chart> {
      * @return
      */
     boolean isSameChart(Chart chart1, Chart chart2);
+
+
 }
