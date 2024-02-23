@@ -33,7 +33,8 @@ public class TaskManager {
     }
 
     // 定时任务方法，当任务ID与开始时间的映射不为空时才运行
-    @Scheduled(fixedRate = 1000) // 每隔1秒执行一次
+    // TODO:修改为消息队列实现
+    @Scheduled(fixedRate = 80000) // 每隔80秒执行一次
     public void checkRunningTasks() {
         // 检查任务ID与开始时间的映射是否为空
         if (!taskStartTimeMap.isEmpty()) {
