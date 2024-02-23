@@ -15,6 +15,7 @@ import com.jl.springbootinit.exception.BusinessException;
 import com.jl.springbootinit.exception.ThrowUtils;
 import com.jl.springbootinit.manager.RedisCacheManager;
 import com.jl.springbootinit.manager.RedisLimiterManager;
+import com.jl.springbootinit.manager.TaskManager;
 import com.jl.springbootinit.model.dto.chart.*;
 import com.jl.springbootinit.model.entity.Chart;
 import com.jl.springbootinit.model.entity.User;
@@ -76,6 +77,9 @@ public class ChartController {
 
     @Resource
     private MessageProducer messageProducer;
+
+    @Resource
+    private TaskManager taskManager;
 
     /**
      * 文件AI分析
@@ -403,6 +407,7 @@ public class ChartController {
         if (!StringUtils.isEmpty(chartType))
             chart.setChartType(chartType);
         chart.setUserId(loginUser.getId());
+        taskManager.startTaskTimer(loginUser.getId());
         boolean saveResult = chartService.save(chart);
         if (!saveResult)
             handleChartUpdateError(chart.getId(), "图表初始数据保存失败");
@@ -414,7 +419,7 @@ public class ChartController {
     }
 
     /**
-     * 文件AI分析
+     * 分析错误重试
      *
      * @param id
      * @return
@@ -436,6 +441,7 @@ public class ChartController {
         Chart chart = new Chart();
         chart.setStatus("wait");
         chart.setId(id);
+        taskManager.startTaskTimer(id);
         boolean saveResult = chartService.updateById(chart);
         if (!saveResult)
             handleChartUpdateError(chart.getId(), "图表状态更新失败");

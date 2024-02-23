@@ -13,7 +13,7 @@ import javax.annotation.Resource;
 
 @Component
 @Slf4j
-public class updateSignStatus {
+public class UpdateSignStatus {
 
     @Resource
     private ScoreService scoreService;

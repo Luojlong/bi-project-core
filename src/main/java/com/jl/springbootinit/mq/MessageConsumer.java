@@ -1,6 +1,7 @@
 package com.jl.springbootinit.mq;
 
 import com.google.gson.*;
+import com.jl.springbootinit.manager.TaskManager;
 import com.jl.springbootinit.service.ScoreService;
 import com.rabbitmq.client.Channel;
 import com.jl.springbootinit.common.ErrorCode;
@@ -35,6 +36,9 @@ public class MessageConsumer {
 
     @Resource
     private WebSocketServer webSocketService;
+
+    @Resource
+    private TaskManager taskManager;
     // 指定程序监听的消息队列和确认机制
     @SneakyThrows
     @RabbitListener(queues = {QUEUE_NAME}, ackMode = "MANUAL")
@@ -49,6 +53,7 @@ public class MessageConsumer {
         Chart updateChart = new Chart();
         updateChart.setId(chart.getId());
         updateChart.setStatus("running");
+        taskManager.startTaskTimer(chartId);
         // 将运行状态更新
         boolean bool = chartService.updateById(updateChart);
         if (!bool) {
@@ -147,6 +152,7 @@ public class MessageConsumer {
             setChartErrorMessage(updateResult.getId(), "图表代码保存失败");
             channel.basicNack(deliveryTag, false, false);
         }
+        taskManager.clearTaskTimer(chartId);
         webSocketService.sendToAllClient("图表生成好啦，快去看看吧！");
         channel.basicAck(deliveryTag, false);
     }
